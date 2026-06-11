@@ -740,17 +740,18 @@ export default function WorldCupPool() {
             <Panel title="Match points" sub="Group W 3 · Draw 1 · Upset W 3 (any round)">
               {standings.length === 0 ? <Empty /> : (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 40px 40px 64px", padding: "2px 0 6px", fontFamily: fontMono, fontSize: 11.5, fontWeight: 700, letterSpacing: 1, color: C.inkSoft, textTransform: "uppercase" }}>
-                    <span>Team</span><span style={{ textAlign: "center" }}>W</span><span style={{ textAlign: "center" }}>D</span><span style={{ textAlign: "center" }}>Upsets</span>
+                  <div style={{ display: "grid", gridTemplateColumns: "92px 1fr 30px 30px 54px", padding: "2px 0 6px", fontFamily: fontMono, fontSize: 11.5, fontWeight: 700, letterSpacing: 1, color: C.inkSoft, textTransform: "uppercase" }}>
+                    <span>Owner</span><span>Team</span><span style={{ textAlign: "center" }}>W</span><span style={{ textAlign: "center" }}>D</span><span style={{ textAlign: "center" }}>Upsets</span>
                   </div>
-                  {uniqueTeamStats.map(s => (
-                    <div key={s.t} style={{ display: "grid", gridTemplateColumns: "1fr 40px 40px 64px", alignItems: "baseline", padding: "8px 0", borderTop: "1px solid #e3e0d4", fontSize: 16.5 }}>
+                  {standings.map(r => r.stats.map((s, j) => (
+                    <div key={`${r.player}-${s.t}`} style={{ display: "grid", gridTemplateColumns: "92px 1fr 30px 30px 54px", alignItems: "baseline", padding: "8px 0", borderTop: `1px solid ${j === 0 ? "#e3e0d4" : "#f0ede2"}`, fontSize: 16.5 }}>
+                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink, fontSize: 14.5, lineHeight: 1.15, paddingRight: 8 }}>{j === 0 ? r.player : ""}</b>
                       <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink }}>{flag(s.t)} {s.t}</b>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.gw ? C.ink : C.inkSoft }}>{s.gw}</span>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.gd ? C.ink : C.inkSoft }}>{s.gd}</span>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.uw ? C.ink : C.inkSoft }}>{s.uw}</span>
                     </div>
-                  ))}
+                  )))}
                 </>
               )}
             </Panel>

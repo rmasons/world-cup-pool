@@ -3,21 +3,19 @@ import "./index.css";
 import WorldCupPool from "./WorldCupPool.jsx";
 
 // Drop-in replacement for the Claude-artifact shared storage API the component
-// was written against — same get/set signature, backed by /api/kv. The pool-code
-// header is the same courtesy lock the app itself uses (obfuscation, not auth).
+// was written against — same get/set signature. The backend is stateless: the
+// pool is computed live from ESPN data, so reads hit /api/pool and writes are
+// rejected (roster changes live in lib/config.js or the POOL_ROSTERS env var;
+// the app's own "Could not save shared data" message handles the rare attempt).
 window.storage = {
   get: async (key) => {
-    const r = await fetch(`/api/kv?key=${encodeURIComponent(key)}`);
-    if (!r.ok) throw new Error("missing");
+    if (key !== "wc26:pool") throw new Error("missing");
+    const r = await fetch("/api/pool");
+    if (!r.ok) throw new Error("unavailable");
     return { value: await r.text() };
   },
-  set: async (key, value) => {
-    const r = await fetch(`/api/kv?key=${encodeURIComponent(key)}`, {
-      method: "PUT",
-      headers: { "x-pool-code": "WC26FUN" },
-      body: value,
-    });
-    if (!r.ok) throw new Error("write failed");
+  set: async () => {
+    throw new Error("read-only");
   },
 };
 

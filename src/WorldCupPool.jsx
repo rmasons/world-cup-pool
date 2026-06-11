@@ -715,9 +715,11 @@ export default function WorldCupPool() {
                           <div style={{ fontSize: 14.5, color: C.inkSoft, marginTop: 2 }}>No schedule loaded yet — tap Update now to fetch it.</div>
                         ) : matches.map((m, k) => (
                           <div key={k} style={{ display: "flex", gap: 8, fontSize: 15.5, color: C.inkSoft, marginTop: 3, alignItems: "baseline", flexWrap: "wrap" }}>
-                            <span style={{ fontFamily: fontMono, fontSize: 12.5, fontWeight: 700, color: C.pitchDark, minWidth: 52 }}>{localKickDate(m)}</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 12.5, fontWeight: 700, color: m.live ? C.red : C.pitchDark, minWidth: 52 }}>{m.live ? "● LIVE" : localKickDate(m)}</span>
                             <span style={{ fontWeight: 600 }}>vs {flag(m.o)} {m.o}</span>
-                            <span style={{ fontFamily: fontMono, fontSize: 12.5 }}>{localKickTime(m)}{m.v ? ` · ${m.v}` : ""}</span>
+                            {m.live
+                              ? <span style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, color: C.ink }}>{m.su}–{m.so} <span style={{ color: C.red, fontWeight: 700 }}>{m.min}</span></span>
+                              : <span style={{ fontFamily: fontMono, fontSize: 12.5 }}>{localKickTime(m)}{m.v ? ` · ${m.v}` : ""}</span>}
                           </div>
                         ))}
                       </div>

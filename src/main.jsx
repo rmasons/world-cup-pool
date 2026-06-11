@@ -14,7 +14,12 @@ window.storage = {
     if (!r.ok) throw new Error("unavailable");
     return { value: await r.text() };
   },
-  set: async () => {
+  set: async (key) => {
+    // The component probes with a write to tell "no data yet" apart from "no
+    // storage access", and a failed probe shows an artifact-era "sign in to
+    // Claude" banner that means nothing on Vercel. Let the probe succeed; a
+    // real read failure then falls through to the honest update-failed path.
+    if (key === "wc26:probe") return;
     throw new Error("read-only");
   },
 };

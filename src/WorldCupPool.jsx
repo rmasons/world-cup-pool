@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 
-// Local date key like "2026-6-11" for once-a-day staleness checks
-const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+// Date key like "2026-6-11" for once-a-day staleness checks. Computed in
+// Central Time to match the server's lastDay stamp (lib/news.js ctDateKey) —
+// using the viewer's local date made every tab east of CT see "yesterday's"
+// data after its own midnight and re-fire the update on every refresh cycle.
+const todayKey = () => {
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", year: "numeric", month: "numeric", day: "numeric" }).formatToParts(new Date());
+  const get = (t) => p.find((x) => x.type === t).value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
 const KICKOFF = new Date(2026, 5, 11); // June 11, 2026
 const POOL_CODE = "WC26FUN"; // entry passcode (case-insensitive)
 
@@ -401,7 +408,13 @@ export default function WorldCupPool() {
         const r = await window.storage.get("wc26:pool", true);
         if (!r) return;
         const d = JSON.parse(r.value);
-        if (d.lastUpdated !== lastSeenRef.current) applyPool(d); // someone else updated — sync it in
+        // Apply only strictly NEWER data — /api/pool is CDN-cached up to 15
+        // minutes, so "different" can mean older than what this tab already
+        // has right after a manual update. (lastUpdated is a CT wall-clock
+        // string; both sides parse with the same offset, so ordering holds.)
+        const seen = Date.parse(lastSeenRef.current) || 0;
+        const got = Date.parse(d.lastUpdated) || 0;
+        if (got > seen) applyPool(d); // someone else updated — sync it in
         // New day and nobody has updated yet? This open tab can be the morning trigger.
         if (new Date() >= KICKOFF && !d.tournamentOver && (d.lastDay || null) !== todayKey()) runUpdateRef.current(true);
       } catch (e) { /* signed-out or transient — try again next cycle */ }

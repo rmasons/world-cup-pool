@@ -4,8 +4,10 @@
 import { buildPool } from "../lib/pipeline.js";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST" && req.method !== "GET") {
-    res.setHeader("Allow", "GET, POST");
+  // POST only — the frontend always POSTs, and a GET-crawlable endpoint would
+  // burn an Odds-API credit (500/mo free tier) per hit on match days.
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "method not allowed" });
   }
   try {

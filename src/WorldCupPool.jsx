@@ -353,8 +353,10 @@ export default function WorldCupPool() {
   const lastSeenRef = useRef(null);
   lastSeenRef.current = lastUpdated;
 
-  // Live re-sync: when the tab regains focus, and every 5 minutes while open,
+  // Live re-sync: when the tab regains focus, and every 5 minutes while open
+  // (every minute during a live match, matching the edge cache window),
   // pull the latest shared data so everyone sees the current version after any update
+  const hasLive = upGames.some((g) => g.live);
   useEffect(() => {
     const refresh = async () => {
       if (busyRef.current) return; // don't clobber an in-progress update or roster edit on this device
@@ -375,9 +377,9 @@ export default function WorldCupPool() {
     };
     const onVis = () => { if (document.visibilityState === "visible") refresh(); };
     document.addEventListener("visibilitychange", onVis);
-    const id = setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 5 * 60 * 1000);
+    const id = setInterval(() => { if (document.visibilityState === "visible") refresh(); }, hasLive ? 60 * 1000 : 5 * 60 * 1000);
     return () => { document.removeEventListener("visibilitychange", onVis); clearInterval(id); };
-  }, []);
+  }, [hasLive]);
   // Deduped team stats for team-level panels (handles two players sharing a team)
   const uniqueTeamStats = [];
   { const seen = new Set(); standings.flatMap(r => r.stats).forEach(s => { if (!seen.has(s.t)) { seen.add(s.t); uniqueTeamStats.push(s); } }); }
@@ -477,15 +479,17 @@ export default function WorldCupPool() {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-              {upGames.map((g, i) => { const td = isLocalToday(g); return (
-                <div key={i} style={{ background: td ? C.board : "rgba(16,24,32,.82)", borderRadius: 8, padding: "12px 14px", border: td ? `2px solid ${C.amber}` : `1px solid ${C.boardLine}`, boxShadow: "0 4px 0 rgba(0,0,0,.25)" }}>
+              {upGames.map((g, i) => { const td = isLocalToday(g); const live = !!g.live; return (
+                <div key={i} style={{ background: td ? C.board : "rgba(16,24,32,.82)", borderRadius: 8, padding: "12px 14px", border: live ? `2px solid ${C.red}` : td ? `2px solid ${C.amber}` : `1px solid ${C.boardLine}`, boxShadow: "0 4px 0 rgba(0,0,0,.25)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    {td ? <Tag>Today</Tag> : <span style={{ fontFamily: fontMono, fontSize: 12.5, color: "#8fa3b5", fontWeight: 700 }}>{localKickDate(g)}</span>}
-                    <span style={{ fontFamily: fontMono, fontSize: 12.5, color: td ? C.amber : "#8fa3b5" }}>{localKickTime(g)}</span>
+                    {live ? <Tag color={C.red} dark>● Live</Tag> : td ? <Tag>Today</Tag> : <span style={{ fontFamily: fontMono, fontSize: 12.5, color: "#8fa3b5", fontWeight: 700 }}>{localKickDate(g)}</span>}
+                    <span style={{ fontFamily: fontMono, fontSize: 12.5, fontWeight: live ? 700 : 400, color: live ? "#FF8A98" : td ? C.amber : "#8fa3b5" }}>{live ? g.min : localKickTime(g)}</span>
                   </div>
                   <div style={{ fontFamily: fontCond, fontWeight: 700, fontSize: 18.5, color: C.chalk, lineHeight: 1.35 }}>
                     {flag(g.a)} {g.a}
-                    <span style={{ color: "#6c8094", fontFamily: fontMono, fontSize: 13, margin: "0 6px" }}>vs</span>
+                    {live
+                      ? <span style={{ color: C.amber, fontFamily: fontMono, fontWeight: 700, fontSize: 17, margin: "0 8px" }}>{g.sa}–{g.sb}</span>
+                      : <span style={{ color: "#6c8094", fontFamily: fontMono, fontSize: 13, margin: "0 6px" }}>vs</span>}
                     {flag(g.b)} {g.b}
                   </div>
                   {g.v && <div style={{ fontFamily: fontMono, fontSize: 12, color: "#7f93a5", marginTop: 6 }}>📍 {g.v}</div>}

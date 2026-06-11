@@ -10,7 +10,10 @@ export default async function handler(req, res) {
   }
   try {
     const pool = await buildPool();
-    res.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=3600");
+    // While a match is in progress the payload carries a live score, so let
+    // the edge revalidate every minute instead of every 15.
+    const live = (pool.upGames || []).some((g) => g.live);
+    res.setHeader("Cache-Control", live ? "public, s-maxage=60, stale-while-revalidate=300" : "public, s-maxage=900, stale-while-revalidate=3600");
     return res.status(200).json(pool);
   } catch (e) {
     return res.status(502).json({ error: String(e?.message || e) });

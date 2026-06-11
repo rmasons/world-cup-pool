@@ -245,7 +245,11 @@ export default function WorldCupPool() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [status, setStatus] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
+  // Remembered unlock: store the code itself, so changing POOL_CODE re-locks
+  // every device. localStorage can throw in private browsing — treat as locked.
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return localStorage.getItem("wc26:code") === POOL_CODE; } catch { return false; }
+  });
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState(false);
   const [storageBlocked, setStorageBlocked] = useState(false);
@@ -399,7 +403,10 @@ export default function WorldCupPool() {
 
   // ---------------- RENDER ----------------
   const tryUnlock = () => {
-    if (codeInput.trim().toUpperCase() === POOL_CODE.toUpperCase()) { setUnlocked(true); setCodeError(false); }
+    if (codeInput.trim().toUpperCase() === POOL_CODE.toUpperCase()) {
+      setUnlocked(true); setCodeError(false);
+      try { localStorage.setItem("wc26:code", POOL_CODE); } catch { /* private browsing — just unlock this visit */ }
+    }
     else setCodeError(true);
   };
 

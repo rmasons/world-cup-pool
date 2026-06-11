@@ -42,10 +42,10 @@ All pool-point math still happens client-side in the original component (`comput
 
 ## Changing rosters
 
-The in-app Pool Setup editor is display-only now (saves show the app's own "could not
-save" message). Real changes happen in `lib/config.js` (edit + push) or the
-`POOL_ROSTERS` env var (edit + redeploy). Spelling fixes are safe — stats are keyed by
-whatever the config says, recomputed fresh every request.
+The in-app Pool Setup editor has been removed — config is code. Changes happen in
+`lib/config.js` (edit + push) or the `POOL_ROSTERS` env var (edit + redeploy).
+Spelling fixes are safe — stats are keyed by whatever the config says, recomputed
+fresh every request.
 
 ## Post-deploy sanity checklist
 

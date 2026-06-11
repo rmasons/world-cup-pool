@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 // Date key like "2026-6-11" for once-a-day staleness checks. Computed in
 // Central Time to match the server's lastDay stamp (lib/news.js ctDateKey) —
@@ -238,15 +238,6 @@ export default function WorldCupPool() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [status, setStatus] = useState("");
-  const [showSetup, setShowSetup] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newT1, setNewT1] = useState("");
-  const [newT2, setNewT2] = useState("");
-  const [editIdx, setEditIdx] = useState(null);
-  const [editName, setEditName] = useState("");
-  const [editT1, setEditT1] = useState("");
-  const [editT2, setEditT2] = useState("");
-  const [confirmReset, setConfirmReset] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState(false);
@@ -297,14 +288,6 @@ export default function WorldCupPool() {
     })();
   }, []);
 
-  const persist = useCallback(async (next) => {
-    try {
-      await window.storage.set("wc26:pool", JSON.stringify(next), true);
-    } catch (e) { setStatus("Could not save shared data. Changes may not be visible to others."); }
-  }, []);
-
-  const snapshot = (over = {}) => ({ rosters, statsMap, stories, daySummary, upGames, teamFx, forecast, forecastAt, lastUpdated, lastDay, tournamentOver, ...over });
-
   // ---- Preseason forecast: seeded once before kickoff from bookmaker consensus ----
   // (set server-side; this just re-reads the stored forecast so the buttons stay honest)
   const runForecast = async () => {
@@ -325,44 +308,8 @@ export default function WorldCupPool() {
     setForecasting(false);
   };
 
-  // ---- Roster management ----
-  const addPlayer = async () => {
-    if (!newName.trim() || !newT1.trim() || !newT2.trim()) { setStatus("Player needs a name and two teams."); return; }
-    const next = [...rosters, { name: newName.trim(), teams: [newT1.trim(), newT2.trim()] }];
-    setRosters(next); setNewName(""); setNewT1(""); setNewT2(""); setStatus("");
-    await persist(snapshot({ rosters: next }));
-  };
-  const removePlayer = async (i) => {
-    const next = rosters.filter((_, idx) => idx !== i);
-    setRosters(next);
-    await persist(snapshot({ rosters: next }));
-  };
-  const savePlayerEdit = async (i) => {
-    if (!editName.trim() || !editT1.trim() || !editT2.trim()) { setStatus("Name and both teams are required."); return; }
-    const oldTeams = rosters[i].teams;
-    const newTeams = [editT1.trim(), editT2.trim()];
-    const next = rosters.map((p, idx) => idx === i ? { name: editName.trim(), teams: newTeams } : p);
-    // Migrate any saved stats/fixtures/forecast from the old spelling to the new one
-    const sm = { ...statsMap }, fxm = { ...teamFx }, fcm = forecast ? { ...forecast } : null;
-    oldTeams.forEach((oldT, j) => {
-      const newT = newTeams[j];
-      if (oldT === newT) return;
-      if (sm[oldT]) { sm[newT] = { ...sm[oldT], t: newT }; delete sm[oldT]; }
-      if (fxm[oldT]) { fxm[newT] = fxm[oldT]; delete fxm[oldT]; }
-      if (fcm && fcm[oldT]) { fcm[newT] = { ...fcm[oldT], t: newT }; delete fcm[oldT]; }
-    });
-    setRosters(next); setStatsMap(sm); setTeamFx(fxm); if (fcm) setForecast(fcm);
-    setEditIdx(null); setEditName(""); setEditT1(""); setEditT2(""); setStatus("");
-    await persist(snapshot({ rosters: next, statsMap: sm, teamFx: fxm, forecast: fcm || forecast }));
-  };
-
-  const resetStats = async () => {
-    if (!confirmReset) { setConfirmReset(true); return; }
-    setConfirmReset(false);
-    setStatsMap({}); setTeamFx({}); setTournamentOver(false); setLastDay(null); setLastUpdated(null);
-    setStatus("Match stats wiped clean — rosters and forecast kept. Fresh data arrives with the next update.");
-    await persist(snapshot({ statsMap: {}, teamFx: {}, tournamentOver: false, lastDay: null, lastUpdated: null }));
-  };
+  // Roster management lives in lib/config.js now (edit + push) — the in-app
+  // Pool Setup editor was removed since the backend is read-only anyway.
 
   // ---- Morning update ----
   // The whole pipeline (results, events, fixtures, standings, news, odds) runs
@@ -393,7 +340,7 @@ export default function WorldCupPool() {
 
   // Refs so the background sync always sees current state without re-binding listeners
   const busyRef = useRef(false);
-  busyRef.current = updating || forecasting || editIdx !== null;
+  busyRef.current = updating || forecasting;
   const runUpdateRef = useRef(null);
   runUpdateRef.current = runUpdate;
   const lastSeenRef = useRef(null);
@@ -592,7 +539,7 @@ export default function WorldCupPool() {
           <div style={{ background: C.board, borderRadius: 10, padding: "18px 0 8px", boxShadow: "0 6px 0 rgba(0,0,0,.3)", overflowX: "auto", border: `2px solid rgba(255,210,63,.35)` }}>
             {standings.length === 0 ? (
               <div style={{ color: C.amber, fontFamily: fontMono, padding: "10px 24px 18px", fontSize: 15 }}>
-                Awaiting the draft. Add players and their two teams in Pool Setup below.
+                Awaiting the draft. Rosters are set in the pool config — check back shortly.
               </div>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
@@ -835,73 +782,6 @@ export default function WorldCupPool() {
                 {TOP10.map(t => <Tag key={t} color="#EFEBDD">{flag(t)} {t}</Tag>)}
               </div>
             </Panel>
-          </div>
-        </section>
-
-        {/* ---------- POOL SETUP ---------- */}
-        <section>
-          <SectionTitle light>Pool setup</SectionTitle>
-          <div style={{ background: C.chalk, borderRadius: 6, padding: "18px 20px" }}>
-            <button onClick={() => setShowSetup(!showSetup)}
-              style={{ fontFamily: fontDisplay, fontSize: 13, textTransform: "uppercase", letterSpacing: 1, background: C.ink, color: C.chalk, border: "none", padding: "10px 16px", borderRadius: 4, cursor: "pointer" }}>
-              {showSetup ? "Hide" : rosters.length ? "Edit players" : "Add players from the draft"}
-            </button>
-            <span style={{ marginLeft: 12, fontSize: 14, color: C.inkSoft, fontFamily: fontMono }}>
-              Heads up: rosters and standings are shared — everyone with this link sees the same pool.
-            </span>
-            {showSetup && (
-              <div style={{ marginTop: 16 }}>
-                {rosters.map((p, i) => (
-                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderBottom: "1px solid #ddd", flexWrap: "wrap" }}>
-                    {editIdx === i ? (
-                      <>
-                        <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Player name" autoFocus
-                          style={{ fontFamily: fontCond, fontSize: 16, fontWeight: 700, padding: "6px 10px", border: `2px solid ${C.ink}`, borderRadius: 4, width: 130 }} />
-                        <span style={{ fontSize: 17 }}>{flag(editT1)}</span>
-                        <input value={editT1} onChange={e => setEditT1(e.target.value)} placeholder="Team 1"
-                          style={{ fontFamily: fontCond, fontSize: 16, padding: "6px 10px", border: `2px solid ${C.ink}`, borderRadius: 4, width: 130 }} />
-                        <span style={{ fontSize: 17 }}>{flag(editT2)}</span>
-                        <input value={editT2} onChange={e => setEditT2(e.target.value)} placeholder="Team 2"
-                          style={{ fontFamily: fontCond, fontSize: 16, padding: "6px 10px", border: `2px solid ${C.ink}`, borderRadius: 4, width: 130 }} />
-                        <button onClick={() => savePlayerEdit(i)} style={{ background: C.pitch, color: C.chalk, border: "none", borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontFamily: fontCond, fontWeight: 700 }}>Save</button>
-                        <button onClick={() => { setEditIdx(null); setEditName(""); setEditT1(""); setEditT2(""); }} style={{ background: "none", border: "1px solid #999", color: C.inkSoft, borderRadius: 4, padding: "6px 12px", cursor: "pointer", fontFamily: fontCond, fontWeight: 700 }}>Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        <b style={{ fontSize: 17, minWidth: 120 }}>{p.name}</b>
-                        <button onClick={() => { setEditIdx(i); setEditName(p.name); setEditT1(p.teams[0]); setEditT2(p.teams[1]); }} title="Edit player name or team spellings"
-                          style={{ background: "none", border: "1px solid #aaa", color: C.inkSoft, borderRadius: 4, padding: "2px 9px", cursor: "pointer", fontFamily: fontCond, fontWeight: 700, fontSize: 13 }}>✎ Edit</button>
-                      </>
-                    )}
-                    {editIdx !== i && <span style={{ fontSize: 16, color: C.inkSoft }}>{p.teams.map(t => `${flag(t)} ${t}`).join("  +  ")}</span>}
-                    <button onClick={() => removePlayer(i)} style={{ marginLeft: "auto", background: "none", border: `1px solid ${C.red}`, color: C.red, borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontFamily: fontCond, fontWeight: 700 }}>Remove</button>
-                  </div>
-                ))}
-                <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                  {[["Player name", newName, setNewName], ["Team 1", newT1, setNewT1], ["Team 2", newT2, setNewT2]].map(([ph, val, set]) => (
-                    <input key={ph} placeholder={ph} value={val} onChange={e => set(e.target.value)}
-                      style={{ fontFamily: fontCond, fontSize: 16, padding: "10px 12px", border: `2px solid ${C.ink}`, borderRadius: 4, flex: "1 1 160px" }} />
-                  ))}
-                  <button onClick={addPlayer}
-                    style={{ fontFamily: fontDisplay, fontSize: 13, textTransform: "uppercase", background: C.pitch, color: C.chalk, border: "none", padding: "10px 18px", borderRadius: 4, cursor: "pointer" }}>
-                    Add player
-                  </button>
-                </div>
-                <div style={{ marginTop: 10, fontSize: 14, color: C.inkSoft }}>
-                  Use full official team names (e.g. "United States", "South Korea") so match lookups land cleanly.
-                </div>
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid #ddd" }}>
-                  <button onClick={resetStats}
-                    style={{ fontFamily: fontCond, fontWeight: 700, fontSize: 14, background: confirmReset ? C.red : "none", color: confirmReset ? C.chalk : C.red, border: `1.5px solid ${C.red}`, borderRadius: 4, padding: "8px 14px", cursor: "pointer" }}>
-                    {confirmReset ? "Tap again to confirm reset" : "Reset all match stats"}
-                  </button>
-                  {confirmReset && <button onClick={() => setConfirmReset(false)} style={{ marginLeft: 8, background: "none", border: "1px solid #999", color: C.inkSoft, borderRadius: 4, padding: "8px 14px", cursor: "pointer", fontFamily: fontCond, fontWeight: 700, fontSize: 14 }}>Cancel</button>}
-                  <div style={{ marginTop: 6, fontSize: 13, color: C.inkSoft, fontFamily: fontMono }}>
-                    Zeroes all results, eliminations, and schedules for every team. Rosters and the preseason forecast are kept. Use this to clear bad data — the next update re-fetches everything from official results.
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </section>
 

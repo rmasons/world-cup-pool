@@ -10,6 +10,13 @@ const todayKey = () => {
   return `${get("year")}-${get("month")}-${get("day")}`;
 };
 const KICKOFF = new Date(2026, 5, 11); // June 11, 2026
+
+// Kickoff display in the viewer's own timezone. The server still ships its
+// pre-formatted CT strings (d/k) as a fallback for payloads stored before the
+// iso field existed.
+const localKickDate = (g) => (g.iso ? new Date(g.iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : g.d);
+const localKickTime = (g) => (g.iso ? new Date(g.iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }) : g.k);
+const isLocalToday = (g) => (g.iso ? new Date(g.iso).toDateString() === new Date().toDateString() : !!g.td);
 const POOL_CODE = "WC26FUN"; // entry passcode (case-insensitive)
 
 // ---------------- SCORING CONSTANTS ----------------
@@ -470,11 +477,11 @@ export default function WorldCupPool() {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-              {upGames.map((g, i) => (
-                <div key={i} style={{ background: g.td ? C.board : "rgba(16,24,32,.82)", borderRadius: 8, padding: "12px 14px", border: g.td ? `2px solid ${C.amber}` : `1px solid ${C.boardLine}`, boxShadow: "0 4px 0 rgba(0,0,0,.25)" }}>
+              {upGames.map((g, i) => { const td = isLocalToday(g); return (
+                <div key={i} style={{ background: td ? C.board : "rgba(16,24,32,.82)", borderRadius: 8, padding: "12px 14px", border: td ? `2px solid ${C.amber}` : `1px solid ${C.boardLine}`, boxShadow: "0 4px 0 rgba(0,0,0,.25)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    {g.td ? <Tag>Today</Tag> : <span style={{ fontFamily: fontMono, fontSize: 12.5, color: "#8fa3b5", fontWeight: 700 }}>{g.d}</span>}
-                    <span style={{ fontFamily: fontMono, fontSize: 12.5, color: g.td ? C.amber : "#8fa3b5" }}>{g.k}</span>
+                    {td ? <Tag>Today</Tag> : <span style={{ fontFamily: fontMono, fontSize: 12.5, color: "#8fa3b5", fontWeight: 700 }}>{localKickDate(g)}</span>}
+                    <span style={{ fontFamily: fontMono, fontSize: 12.5, color: td ? C.amber : "#8fa3b5" }}>{localKickTime(g)}</span>
                   </div>
                   <div style={{ fontFamily: fontCond, fontWeight: 700, fontSize: 18.5, color: C.chalk, lineHeight: 1.35 }}>
                     {flag(g.a)} {g.a}
@@ -497,7 +504,7 @@ export default function WorldCupPool() {
                     </div>
                   ) : null}
                 </div>
-              ))}
+              ); })}
             </div>
           )}
           {upGames.some(g => g.td && (g.pa || g.pb)) && (
@@ -704,9 +711,9 @@ export default function WorldCupPool() {
                           <div style={{ fontSize: 14.5, color: C.inkSoft, marginTop: 2 }}>No schedule loaded yet — tap Update now to fetch it.</div>
                         ) : matches.map((m, k) => (
                           <div key={k} style={{ display: "flex", gap: 8, fontSize: 15.5, color: C.inkSoft, marginTop: 3, alignItems: "baseline", flexWrap: "wrap" }}>
-                            <span style={{ fontFamily: fontMono, fontSize: 12.5, fontWeight: 700, color: C.pitchDark, minWidth: 52 }}>{m.d}</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 12.5, fontWeight: 700, color: C.pitchDark, minWidth: 52 }}>{localKickDate(m)}</span>
                             <span style={{ fontWeight: 600 }}>vs {flag(m.o)} {m.o}</span>
-                            <span style={{ fontFamily: fontMono, fontSize: 12.5 }}>{m.k}{m.v ? ` · ${m.v}` : ""}</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 12.5 }}>{localKickTime(m)}{m.v ? ` · ${m.v}` : ""}</span>
                           </div>
                         ))}
                       </div>

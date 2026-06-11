@@ -489,7 +489,7 @@ export default function WorldCupPool() {
                     {flag(g.b)} {g.b}
                   </div>
                   {g.v && <div style={{ fontFamily: fontMono, fontSize: 12, color: "#7f93a5", marginTop: 6 }}>📍 {g.v}</div>}
-                  {g.td && (g.pa || g.pb) ? (
+                  {(g.pa || g.pb) ? (
                     <div style={{ marginTop: 10 }}>
                       <div style={{ display: "flex", height: 7, borderRadius: 4, overflow: "hidden", background: "#2a3845" }}>
                         <div style={{ width: `${g.pa || 0}%`, background: C.amber }} />
@@ -507,7 +507,7 @@ export default function WorldCupPool() {
               ); })}
             </div>
           )}
-          {upGames.some(g => g.td && (g.pa || g.pb)) && (
+          {upGames.some(g => g.pa || g.pb) && (
             <div style={{ marginTop: 10, fontFamily: fontMono, fontSize: 11.5, color: "rgba(250,250,247,.7)" }}>
               Win chances are consensus pregame probabilities from published odds, refreshed each morning — for bragging-rights forecasting only.
             </div>

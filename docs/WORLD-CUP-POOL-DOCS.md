@@ -1,3 +1,8 @@
+> **Note (June 2026):** This document describes the original Claude-artifact version of the app.
+> The live Vercel deployment uses a fully stateless ESPN-based backend — no AI calls, no Redis,
+> no `window.storage` shim beyond the thin read adapter in `src/main.jsx`. See `README.md` for
+> the current architecture. This file is kept for historical context.
+
 # 2026 World Cup Pool — Build Documentation
 
 A self-updating scoreboard website for a 16-player World Cup pool, originally built as a Claude artifact (single-file React app) and now being ported to Vercel. This document explains how the app was built, every significant decision made along the way, the complete scoring logic, and exactly what must change to run it outside the Claude platform.

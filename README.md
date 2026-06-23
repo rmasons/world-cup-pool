@@ -72,9 +72,6 @@ fresh every request.
   these rules; an exact tie awards nothing until the group rules on it.
 - **Forecast** is a one-time, hand-written bookmaker-consensus snapshot in
   `lib/config.js` (no runtime AI). Live projections take over after the first matches.
-- **Slovakia did not qualify** for the 2026 World Cup but is on Jordyn Kerr's roster
-  per the draft sheet. Until corrected in `lib/config.js`, it scores zero and shows
-  no fixtures.
 
 ## Local development
 

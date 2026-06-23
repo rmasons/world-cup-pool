@@ -714,7 +714,7 @@ export default function WorldCupPool() {
                     return (
                       <div key={t} style={{ padding: "8px 0", borderTop: "1px solid #e3e0d4" }}>
                         <div style={{ fontFamily: fontCond, fontWeight: 700, fontSize: 17, color: out ? "#9a9a90" : C.ink }}>
-                          {flag(t)} {t} {out && <span style={{ fontFamily: fontMono, fontSize: 11, color: C.red, border: `1px solid ${C.red}`, borderRadius: 3, padding: "0 5px", marginLeft: 4 }}>OUT</span>}
+                          {flag(t)} {t} {out ? <span style={{ fontFamily: fontMono, fontSize: 11, color: C.red, border: `1px solid ${C.red}`, borderRadius: 3, padding: "0 5px", marginLeft: 4 }}>OUT</span> : null}
                         </div>
                         {out ? (
                           <div style={{ fontSize: 14.5, color: "#9a9a90", marginTop: 2 }}>Tournament over — points are banked.</div>

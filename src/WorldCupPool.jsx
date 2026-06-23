@@ -624,7 +624,6 @@ export default function WorldCupPool() {
                     const arrowColor = move > 0 ? "#1B7A3D" : move < 0 ? C.red : "#9a9a90";
                     const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
                     const medalColor = i === 0 ? C.amber : i === 1 ? "#C8D2DC" : i === 2 ? "#D98E4A" : "#5d7186";
-                    const showProj = (row.projDetail && row.projDetail.length > 0) || row.projected !== row.total;
                     return (
                       <div key={row.player} style={{
                         background: C.board,
@@ -656,17 +655,15 @@ export default function WorldCupPool() {
                             </div>
                           ))}
                         </div>
-                        {showProj && (
-                          <div style={{ background: "rgba(0,0,0,.2)", padding: "8px 16px 8px 60px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                            <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 12, color: arrowColor, minWidth: 28 }}>{arrow}</span>
-                            <span style={{ fontFamily: fontMono, fontSize: 12, color: "#9fb2c2" }}>
-                              Proj: <span style={{ fontWeight: 700, color: row.projected > row.total ? "#22c55e" : "#9fb2c2" }}>{row.projected}</span>
-                            </span>
-                            {(row.projDetail || []).map((d, k) => (
-                              <span key={k} style={{ fontFamily: fontMono, fontSize: 11, background: "rgba(255,255,255,.07)", color: "#b0c4d4", borderRadius: 3, padding: "2px 6px", border: "1px solid rgba(255,255,255,.12)" }}>{d}</span>
-                            ))}
-                          </div>
-                        )}
+                        <div style={{ background: "rgba(0,0,0,.2)", padding: "8px 16px 8px 60px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 12, color: arrowColor, minWidth: 28 }}>{arrow}</span>
+                          <span style={{ fontFamily: fontMono, fontSize: 12, color: "#9fb2c2" }}>
+                            Proj #{projRank + 1} · <span style={{ fontWeight: 700, color: row.projected > row.total ? "#22c55e" : "#9fb2c2" }}>{row.projected} pts</span>
+                          </span>
+                          {(row.projDetail || []).map((d, k) => (
+                            <span key={k} style={{ fontFamily: fontMono, fontSize: 11, background: "rgba(255,255,255,.07)", color: "#b0c4d4", borderRadius: 3, padding: "2px 6px", border: "1px solid rgba(255,255,255,.12)" }}>{d}</span>
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
@@ -691,7 +688,8 @@ export default function WorldCupPool() {
               {standings.map(row => {
                 const isExpanded = expandedSchedules.has(row.player);
                 const allFx = row.teams.flatMap(t => fxFor(t));
-                const nextFx = allFx.find(m => m.live) || allFx[0];
+                const sortedFx = [...allFx].sort((a, b) => (a.iso || '').localeCompare(b.iso || ''));
+                const nextFx = sortedFx.find(m => m.live) || sortedFx[0];
                 return (
                   <div key={row.player} style={{ background: C.chalk, borderRadius: 8, boxShadow: "0 5px 0 rgba(0,0,0,.22)", overflow: "hidden" }}>
                     <div

@@ -1,7 +1,13 @@
 > **Note (June 2026):** This document describes the original Claude-artifact version of the app.
 > The live Vercel deployment uses a fully stateless ESPN-based backend — no AI calls, no Redis,
-> no `window.storage` shim beyond the thin read adapter in `src/main.jsx`. See `README.md` for
-> the current architecture. This file is kept for historical context.
+> no `window.storage` shim beyond the thin read adapter in `src/main.jsx`. The scoring engine has
+> since been extracted to `lib/scoring.js` (pure module, Vitest suite), and the **scoring rules in
+> §4 have evolved**: group elimination now seals on mathematical head-to-head logic (a team can be
+> out before the final matchday), the "first out" +10 goes to the first *pool* team eliminated
+> (not the first team in the whole tournament), and the elim-keyed multipliers (last place / zero
+> goals) only **lock** once a team's group games are complete — until then they show as *brewing*.
+> See `README.md` and `lib/` for the authoritative current behavior. This file is kept for
+> historical context.
 
 # 2026 World Cup Pool — Build Documentation
 

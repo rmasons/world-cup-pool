@@ -1,0 +1,41 @@
+name: CI
+
+# Lint, build, and run the Vitest suite on every push to dev/main and every PR.
+# Keeps the scoring/elimination engines (lib/scoring.js, lib/stats.js, lib/espn.js)
+# from silently regressing.
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+# Cancel an in-flight run when new commits land on the same branch/PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test

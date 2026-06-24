@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import { computeAll } from "../lib/scoring.js";
 
 // Date key like "2026-6-11" for once-a-day staleness checks. Computed in
 // Central Time to match the server's lastDay stamp (lib/news.js ctDateKey) —
@@ -99,115 +100,10 @@ const fontDisplay = "'Archivo Black', 'Arial Black', sans-serif";
 const fontCond = "'Barlow Condensed', 'Arial Narrow', sans-serif";
 const fontMono = "'IBM Plex Mono', 'Courier New', monospace";
 
-// Empty stat line for a team
-const emptyStats = (t) => ({ t, gp:0, gf:0, ga:0, cy:0, cr:0, gw:0, gd:0, uw:0, og:0, bl:0, r32:0, r16:0, qf:0, sf:0, ch:0, elim:0, fo:0 });
-
 // ---------------- POINT MATH ----------------
-function teamBasePoints(s) {
-  return s.gw*3 + s.gd*1 + s.uw*3 + s.r32*3 + s.r16*5 + s.qf*5 + s.sf*10 + s.ch*20
-       + s.og*5 + s.bl*5 + (s.fo ? 10 : 0);
-}
-
-function computeAll(rosters, statsMap, tournamentOver) {
-  const teams = [];
-  rosters.forEach(p => p.teams.forEach(t => teams.push(t)));
-  const stats = teams.map(t => statsMap[t] || emptyStats(t));
-
-  // Provisional end-of-tournament awards
-  const played = stats.filter(s => s.gp > 0);
-  const maxGF = played.length ? Math.max(...played.map(s => s.gf)) : null;
-  const defElig = stats.filter(s => s.gp >= 3);
-  const minGA = defElig.length ? Math.min(...defElig.map(s => s.ga)) : null;
-  const cardPts = s => s.cy*1 + s.cr*2;
-  const maxCards = played.length ? Math.max(...played.map(cardPts)) : null;
-  const maxGA = played.length ? Math.max(...played.map(s => s.ga)) : null;
-
-  const offenseLeaders = maxGF !== null && maxGF > 0 ? played.filter(s => s.gf === maxGF).map(s => s.t) : [];
-  const defenseLeaders = minGA !== null ? defElig.filter(s => s.ga === minGA).map(s => s.t) : [];
-  const cardLeaders = maxCards !== null && maxCards > 0 ? played.filter(s => cardPts(s) === maxCards).map(s => s.t) : [];
-  const mostAllowed = maxGA !== null && maxGA > 0 ? played.filter(s => s.ga === maxGA).map(s => s.t) : [];
-
-  // Last place: 0 match points (gw=gd=0) and worst goal differential
-  let lastPlace = null;
-  const pointless = played.filter(s => s.gw === 0 && s.gd === 0 && s.elim);
-  if (pointless.length) {
-    const worstGD = Math.min(...pointless.map(s => s.gf - s.ga));
-    if (worstGD < 0) {
-      const worst = pointless.filter(s => s.gf - s.ga === worstGD);
-      if (worst.length === 1) lastPlace = { team: worst[0].t, gd: worstGD, mult: Math.max(1, Math.abs(worstGD)/2) };
-    }
-  }
-
-  const teamScore = {};
-  stats.forEach(s => {
-    let pts = teamBasePoints(s);
-    if (tournamentOver) {
-      if (offenseLeaders.includes(s.t)) pts += 10;
-      if (defenseLeaders.includes(s.t)) pts += 10;
-      if (cardLeaders.includes(s.t)) pts += 10;
-    }
-    teamScore[s.t] = pts;
-  });
-
-  // Multiplier a team GENERATES for its partner (largest only)
-  const teamMult = {};
-  stats.forEach(s => {
-    let m = 1, label = null;
-    const zeroGoals = s.gf === 0 && s.gp > 0 && (tournamentOver || s.elim);
-    const mostAllow = mostAllowed.includes(s.t) && tournamentOver;
-    if (zeroGoals && 1.5 > m) { m = 1.5; label = "Zero goals 1.5x"; }
-    if (mostAllow && 1.5 > m) { m = 1.5; label = "Most allowed 1.5x"; }
-    if (lastPlace && lastPlace.team === s.t && lastPlace.mult > m) { m = lastPlace.mult; label = `Last place ${lastPlace.mult}x`; }
-    teamMult[s.t] = { m, label };
-  });
-
-  // Provisional multipliers (what's brewing even before they lock)
-  const provMult = {};
-  stats.forEach(s => {
-    const flags = [];
-    if (s.gf === 0 && s.gp > 0) flags.push("Zero goals so far");
-    if (mostAllowed.includes(s.t)) flags.push("Most goals allowed so far");
-    provMult[s.t] = flags;
-  });
-
-  const standings = rosters.map(p => {
-    const provMultOf = (s, mostAllowedList) => (s.gf === 0 && s.gp > 0) || mostAllowedList.includes(s.t);
-    const [a, b] = p.teams;
-    const sa = statsMap[a] || emptyStats(a);
-    const sb = statsMap[b] || emptyStats(b);
-    const multA = teamMult[b]?.m || 1; // partner's multiplier applies to this team
-    const multB = teamMult[a]?.m || 1;
-    const current = teamScore[a] + teamScore[b];
-    const total = Math.round(teamScore[a]*multA + teamScore[b]*multB);
-
-    // Projected: add provisional end-of-tournament awards if not over, with a breakdown
-    let projected = total;
-    const projDetail = [];
-    if (!tournamentOver) {
-      let pa = teamScore[a], pb = teamScore[b];
-      const award = (team, name) => projDetail.push(`${flag(team)} ${name} +10`);
-      if (offenseLeaders.includes(a)) { pa += 10; award(a, "Best Offense"); }
-      if (defenseLeaders.includes(a)) { pa += 10; award(a, "Best Defense"); }
-      if (cardLeaders.includes(a)) { pa += 10; award(a, "Most Cards"); }
-      if (offenseLeaders.includes(b)) { pb += 10; award(b, "Best Offense"); }
-      if (defenseLeaders.includes(b)) { pb += 10; award(b, "Best Defense"); }
-      if (cardLeaders.includes(b)) { pb += 10; award(b, "Most Cards"); }
-      // Provisional multipliers brewing (zero goals / most allowed), shown as if they locked today
-      let provA = multA, provB = multB;
-      if (provA === 1 && (provMultOf(statsMap[b] || emptyStats(b), mostAllowed))) provA = 1.5;
-      if (provB === 1 && (provMultOf(statsMap[a] || emptyStats(a), mostAllowed))) provB = 1.5;
-      if (provA > 1) projDetail.push(`${flag(b)} multiplier x${provA} boosts ${flag(a)} +${Math.round(pa * provA - pa)}`);
-      if (provB > 1) projDetail.push(`${flag(a)} multiplier x${provB} boosts ${flag(b)} +${Math.round(pb * provB - pb)}`);
-      projected = Math.round(pa * provA + pb * provB);
-    } else {
-      if (multA > 1) projDetail.push(`${flag(b)} multiplier x${multA} on ${flag(a)}`);
-      if (multB > 1) projDetail.push(`${flag(a)} multiplier x${multB} on ${flag(b)}`);
-    }
-    return { player: p.name, teams: [a, b], teamPts: [teamScore[a], teamScore[b]], mults: [teamMult[b], teamMult[a]], current, total, projected, projDetail, stats: [sa, sb] };
-  }).sort((x, y) => y.total - x.total || y.projected - x.projected);
-
-  return { standings, stats, awards: { offenseLeaders, maxGF, defenseLeaders, minGA, cardLeaders, maxCards, mostAllowed, maxGA, lastPlace }, provMult, teamMult };
-}
+// teamBasePoints / computeAll / emptyStats now live in ../lib/scoring.js as pure,
+// UI-free functions. computeAll takes `flag` as an injected param; this component
+// passes its own flag helper at the call site so rendered output is unchanged.
 
 // ---------------- API HELPERS ----------------
 // Data fetching now lives server-side (/api/update pulls from a sports data API
@@ -238,7 +134,7 @@ export default function WorldCupPool() {
   const [forecastAt, setForecastAt] = useState(null);
   const [forecasting, setForecasting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [lastDay, setLastDay] = useState(null);
+  const [, setLastDay] = useState(null); // value unused; only the setter feeds applyPool's cache
   const [pendingAuto, setPendingAuto] = useState(false);
   const autoRan = useRef(false);
   const [tournamentOver, setTournamentOver] = useState(false);
@@ -253,6 +149,7 @@ export default function WorldCupPool() {
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState(false);
   const [storageBlocked, setStorageBlocked] = useState(false);
+  const [expandedSchedules, setExpandedSchedules] = useState(new Set());
 
   // Load Google Fonts
   useEffect(() => {
@@ -288,10 +185,10 @@ export default function WorldCupPool() {
           savedDay = d.lastDay || null;
           if (d.tournamentOver) savedDay = todayKey(); // stop auto-updating after the final
         }
-      } catch (e) {
+      } catch {
         // Could be "no data yet" or "no storage access (signed out)". Probe with a harmless write to tell them apart.
         try { await window.storage.set("wc26:probe", "1"); }
-        catch (e2) { setStorageBlocked(true); }
+        catch { setStorageBlocked(true); }
       }
       // Auto-update once per day: first visitor after kickoff with stale data triggers it
       if (new Date() >= KICKOFF && savedDay !== todayKey()) setPendingAuto(true);
@@ -315,7 +212,7 @@ export default function WorldCupPool() {
           setStatus("The preseason forecast is set once before kickoff — live projections take over after the first matches.");
         }
       }
-    } catch (e) { setStatus("Could not refresh the forecast — try again."); }
+    } catch { setStatus("Could not refresh the forecast — try again."); }
     setForecasting(false);
   };
 
@@ -339,7 +236,7 @@ export default function WorldCupPool() {
       if (!res.ok) throw new Error(`update failed (${res.status})`);
       const d = await res.json();
       if (d && d.pool) applyPool(d.pool);
-    } catch (e) {
+    } catch {
       hadError = true;
       setStatus("Update failed — showing last saved data. Run Update now to retry.");
     }
@@ -347,15 +244,19 @@ export default function WorldCupPool() {
     if (!hadError) setStatus("");
   };
 
-  const { standings, awards, provMult } = computeAll(rosters, statsMap, tournamentOver);
+  const { standings, awards, provMult } = computeAll(rosters, statsMap, tournamentOver, flag);
 
-  // Refs so the background sync always sees current state without re-binding listeners
+  // Refs so the background sync always sees current state without re-binding listeners.
+  // They're written in an effect (not during render) so a ref is never mutated mid-render;
+  // the long-lived re-sync effect below reads `.current` at call time, after these commit.
   const busyRef = useRef(false);
-  busyRef.current = updating || forecasting;
   const runUpdateRef = useRef(null);
-  runUpdateRef.current = runUpdate;
   const lastSeenRef = useRef(null);
-  lastSeenRef.current = lastUpdated;
+  useEffect(() => {
+    busyRef.current = updating || forecasting;
+    runUpdateRef.current = runUpdate;
+    lastSeenRef.current = lastUpdated;
+  });
 
   // Live re-sync: when the tab regains focus, and every 5 minutes while open
   // (every minute during a live match, matching the edge cache window),
@@ -377,7 +278,7 @@ export default function WorldCupPool() {
         if (got > seen) applyPool(d); // someone else updated — sync it in
         // New day and nobody has updated yet? This open tab can be the morning trigger.
         if (new Date() >= KICKOFF && !d.tournamentOver && (d.lastDay || null) !== todayKey()) runUpdateRef.current(true);
-      } catch (e) { /* signed-out or transient — try again next cycle */ }
+      } catch { /* signed-out or transient — try again next cycle */ }
     };
     const onVis = () => { if (document.visibilityState === "visible") refresh(); };
     document.addEventListener("visibilitychange", onVis);
@@ -448,7 +349,7 @@ export default function WorldCupPool() {
         {/* chalk center-circle motif */}
         <div style={{ position: "absolute", right: "-90px", top: "-110px", width: 320, height: 320, borderRadius: "50%", border: "3px solid rgba(250,250,247,.25)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", right: "10px", top: "-10px", width: 120, height: 120, borderRadius: "50%", border: "3px solid rgba(250,250,247,.18)", pointerEvents: "none" }} />
-        <div style={{ fontFamily: fontCond, fontWeight: 700, letterSpacing: 4, textTransform: "uppercase", fontSize: 14, opacity: .95 }}>
+        <div style={{ fontFamily: fontCond, fontWeight: 700, letterSpacing: "clamp(1px, 1.2vw, 4px)", textTransform: "uppercase", fontSize: 14, opacity: .95, overflowWrap: "break-word" }}>
           🇺🇸 United States · 🇨🇦 Canada · 🇲🇽 Mexico — June 11 to July 19, 2026
         </div>
         <h1 style={{ fontFamily: fontDisplay, fontSize: "clamp(36px, 7vw, 68px)", lineHeight: 1.02, margin: "8px 0 4px", textTransform: "uppercase", textShadow: "3px 3px 0 rgba(0,0,0,.3)" }}>
@@ -472,13 +373,35 @@ export default function WorldCupPool() {
         )}
       </header>
 
+      {!loading && (
+        <nav style={{ position: "sticky", top: 0, zIndex: 50, background: C.pitchDark,
+          borderBottom: "1px solid rgba(250,250,247,.15)", boxShadow: "0 2px 10px rgba(0,0,0,.4)",
+          display: "flex", gap: 6, overflowX: "auto", padding: "8px 5vw", WebkitOverflowScrolling: "touch" }}>
+          {[
+            { id: "schedule", label: "Schedule" },
+            { id: "stories", label: "Stories" },
+            { id: "scoreboard", label: "Scoreboard" },
+            { id: "teams", label: "My teams" },
+            { id: "categories", label: "Points" },
+          ].map(s => (
+            <button key={s.id} onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              style={{ flex: "0 0 auto", fontFamily: fontMono, fontSize: 12, fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: 1, color: C.chalk, background: "rgba(250,250,247,.08)",
+                border: "1px solid rgba(250,250,247,.18)", borderRadius: 999, padding: "7px 14px",
+                cursor: "pointer", whiteSpace: "nowrap" }}>
+              {s.label}
+            </button>
+          ))}
+        </nav>
+      )}
+
       {loading ? (
         <div style={{ padding: "60px 5vw", color: C.chalk, fontFamily: fontMono }}>Loading the pool…</div>
       ) : (
       <main style={{ padding: "34px 5vw 60px", maxWidth: 1100, margin: "0 auto" }}>
 
         {/* ---------- UPCOMING GAMES ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="schedule" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>On the schedule</SectionTitle>
           {upGames.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "16px 20px", borderRadius: 8, fontSize: 17 }}>
@@ -526,7 +449,7 @@ export default function WorldCupPool() {
         </section>
 
         {/* ---------- TOP STORIES ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="stories" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Today's top stories</SectionTitle>
           {stories.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "18px 20px", borderRadius: 6, fontSize: 17 }}>
@@ -552,67 +475,14 @@ export default function WorldCupPool() {
         </section>
 
         {/* ---------- SCOREBOARD ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="scoreboard" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Scoreboard</SectionTitle>
-          <div style={{ background: C.board, borderRadius: 10, padding: "18px 0 8px", boxShadow: "0 6px 0 rgba(0,0,0,.3)", overflowX: "auto", border: `2px solid rgba(255,210,63,.35)` }}>
-            {standings.length === 0 ? (
-              <div style={{ color: C.amber, fontFamily: fontMono, padding: "10px 24px 18px", fontSize: 15 }}>
-                Awaiting the draft. Rosters are set in the pool config — check back shortly.
-              </div>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
-                <thead>
-                  <tr style={{ color: "#8fa3b5", fontFamily: fontCond, fontWeight: 700, textTransform: "uppercase", letterSpacing: 2, fontSize: 13.5, textAlign: "left" }}>
-                    <th style={{ padding: "4px 18px" }}>Pos</th>
-                    <th style={{ padding: "4px 8px" }}>Player</th>
-                    <th style={{ padding: "4px 8px" }}>Teams · pts</th>
-                    <th style={{ padding: "4px 8px", textAlign: "right" }}>Total</th>
-                    <th style={{ padding: "4px 18px 4px 8px", textAlign: "right" }}>Projected*</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {standings.map((row, i) => {
-                    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
-                    const medalColor = i === 0 ? C.amber : i === 1 ? "#C8D2DC" : i === 2 ? "#D98E4A" : "#5d7186";
-                    return (
-                    <tr key={row.player} style={{ borderTop: `1px solid ${C.boardLine}`, background: i === 0 ? "rgba(255,210,63,.10)" : i % 2 ? "rgba(255,255,255,.025)" : "transparent" }}>
-                      <td style={{ padding: "16px 18px", fontFamily: fontMono, fontWeight: 700, fontSize: 22, color: medalColor, whiteSpace: "nowrap", borderLeft: `5px solid ${i < 3 ? medalColor : "transparent"}` }}>
-                        {medal || i + 1}
-                      </td>
-                      <td style={{ padding: "16px 8px", fontFamily: fontDisplay, fontSize: 19, color: C.chalk, textTransform: "uppercase", letterSpacing: .5 }}>{row.player}</td>
-                      <td style={{ padding: "16px 8px" }}>
-                        {row.teams.map((t, j) => (
-                          <div key={t} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: j === 0 ? 6 : 0, opacity: row.stats[j].elim ? .55 : 1 }}>
-                            <span style={{ fontSize: 20 }}>{flag(t)}</span>
-                            <span style={{ color: "#E7EDF2", fontSize: 17, fontWeight: 700 }}>{t}</span>
-                            <span style={{ fontFamily: fontMono, color: C.amber, fontSize: 15 }}>{row.teamPts[j]}</span>
-                            {row.mults[j]?.label && <Tag color={C.red} dark>{row.mults[j].label}</Tag>}
-                            {row.stats[j].elim ? <span style={{ color: "#8fa3b5", fontSize: 12, fontFamily: fontMono, border: "1px solid #44566a", borderRadius: 3, padding: "0 5px" }}>OUT</span> : null}
-                          </div>
-                        ))}
-                      </td>
-                      <td style={{ padding: "16px 8px", textAlign: "right", fontFamily: fontMono, fontWeight: 700, fontSize: 32, color: i === 0 ? C.amber : "#FFE48A" }}>{row.total}</td>
-                      <td style={{ padding: "16px 18px 16px 8px", textAlign: "right", fontFamily: fontMono, fontSize: 18, color: "#9fb2c2" }}>{row.projected}</td>
-                    </tr>
-                  );})}
-                </tbody>
-              </table>
-            )}
-            <div style={{ color: "#7f93a5", fontFamily: fontMono, fontSize: 12, padding: "10px 18px" }}>
-              * Projected adds end-of-tournament awards and multipliers as if they locked today. Total counts only banked points{tournamentOver ? " — tournament complete, awards included." : "."}
-            </div>
-          </div>
-        </section>
-
-        {/* ---------- PROJECTED STANDINGS ---------- */}
-        <section style={{ marginBottom: 44 }}>
-          <SectionTitle light>Projected final standings</SectionTitle>
           {standings.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "16px 20px", borderRadius: 8, fontSize: 17 }}>
-              Once the rosters are in, this section forecasts how everyone finishes — first from preseason predictions, then from live results.
+              Awaiting the draft. Rosters are set in the pool config — check back shortly.
             </div>
           ) : !standings.some(r => r.stats.some(s => s.gp > 0)) ? (
-            /* ----- PRESEASON MODE: no matches played yet ----- */
+            /* ----- PRESEASON MODE ----- */
             !forecast ? (
               <div style={{ background: C.chalk, borderRadius: 10, padding: "22px 24px", boxShadow: "0 6px 0 rgba(0,0,0,.25)" }}>
                 <div style={{ fontSize: 17.5, color: C.ink, lineHeight: 1.5, marginBottom: 14 }}>
@@ -662,84 +532,150 @@ export default function WorldCupPool() {
               );
             })()
           ) : (() => {
-            const proj = [...standings].sort((x, y) => y.projected - x.projected || y.total - x.total);
-            const anyPending = proj.some(r => r.projDetail && r.projDetail.length);
+            const projOrder = [...standings]
+              .sort((a, b) => b.projected - a.projected || b.total - a.total)
+              .map(r => r.player);
+            const anyPending = standings.some(r => r.projDetail && r.projDetail.length);
             return (
-              <div style={{ background: C.chalk, borderRadius: 10, padding: "6px 0", boxShadow: "0 6px 0 rgba(0,0,0,.25)" }}>
-                {proj.map((row, i) => {
-                  const liveRank = standings.findIndex(s => s.player === row.player);
-                  const move = liveRank - i;
-                  const arrow = move > 0 ? `▲${move}` : move < 0 ? `▼${Math.abs(move)}` : "—";
-                  const arrowColor = move > 0 ? "#1B7A3D" : move < 0 ? C.red : "#9a9a90";
-                  return (
-                    <div key={row.player} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 20px", borderTop: i ? "1px solid #e3e0d4" : "none", flexWrap: "wrap" }}>
-                      <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 19, color: C.ink, minWidth: 28 }}>{i + 1}</span>
-                      <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 13, color: arrowColor, minWidth: 34 }} title="Movement vs live scoreboard">{arrow}</span>
-                      <span style={{ fontFamily: fontDisplay, fontSize: 16, textTransform: "uppercase", color: C.ink, minWidth: 130 }}>{row.player}</span>
-                      <span style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
-                        {(row.projDetail || []).map((d, k) => (
-                          <span key={k} style={{ fontFamily: fontMono, fontSize: 12, background: "#EFEBDD", color: C.inkSoft, borderRadius: 4, padding: "3px 8px", border: "1px solid #ddd8c8" }}>{d}</span>
-                        ))}
-                      </span>
-                      <span style={{ fontFamily: fontMono, fontSize: 14, color: "#9a9a90" }}>{row.total} banked</span>
-                      <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 24, color: row.projected > row.total ? "#1B7A3D" : C.ink, minWidth: 56, textAlign: "right" }}>{row.projected}</span>
-                    </div>
-                  );
-                })}
-                <div style={{ fontFamily: fontMono, fontSize: 12, color: C.inkSoft, padding: "10px 20px", borderTop: "1px solid #e3e0d4", lineHeight: 1.6 }}>
-                  {anyPending
-                    ? "Projection = banked points + season awards (Best Offense/Defense/Most Cards, +10 each) and multipliers as if they locked at today's numbers. These swing daily until the final whistle — ▲▼ shows movement vs the live scoreboard."
-                    : "No season awards or multipliers in play yet — projections currently match the live scoreboard. They'll diverge once goals, cards, and eliminations pile up."}
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {standings.map((row, i) => {
+                    const projRank = projOrder.indexOf(row.player);
+                    const move = i - projRank;
+                    const arrow = move > 0 ? `▲${move}` : move < 0 ? `▼${Math.abs(move)}` : "—";
+                    const arrowColor = move > 0 ? "#1B7A3D" : move < 0 ? C.red : "#9a9a90";
+                    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+                    const medalColor = i === 0 ? C.amber : i === 1 ? "#C8D2DC" : i === 2 ? "#D98E4A" : "#5d7186";
+                    return (
+                      <div key={row.player} style={{
+                        background: C.board,
+                        borderRadius: 8,
+                        boxShadow: "0 4px 0 rgba(0,0,0,.28)",
+                        border: i === 0 ? `2px solid rgba(255,210,63,.35)` : `1px solid ${C.boardLine}`,
+                        borderLeft: `5px solid ${i < 3 ? medalColor : "#2a3845"}`,
+                        overflow: "hidden",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 8px" }}>
+                          <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 22, color: medalColor, minWidth: 34, textAlign: "center" }}>
+                            {medal || i + 1}
+                          </span>
+                          <span style={{ fontFamily: fontDisplay, fontSize: 18, color: C.chalk, textTransform: "uppercase", letterSpacing: .5, flex: 1 }}>
+                            {row.player}
+                          </span>
+                          <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 30, color: i === 0 ? C.amber : "#FFE48A", lineHeight: 1 }}>
+                            {row.total}
+                          </span>
+                        </div>
+                        <div style={{ padding: "0 16px 12px 60px", display: "flex", flexDirection: "column", gap: 5 }}>
+                          {row.teams.map((t, j) => (
+                            <div key={t} style={{ display: "flex", gap: 8, alignItems: "center", opacity: row.stats[j].elim ? .5 : 1 }}>
+                              <span style={{ fontSize: 18 }}>{flag(t)}</span>
+                              <span style={{ color: "#E7EDF2", fontSize: 15, fontWeight: 700, flex: 1 }}>{t}</span>
+                              <span style={{ fontFamily: fontMono, color: C.amber, fontSize: 14 }}>{row.teamPts[j]}</span>
+                              {row.mults[j]?.label && <Tag color={C.red} dark>{row.mults[j].label}</Tag>}
+                              {row.stats[j].elim ? <span style={{ color: "#8fa3b5", fontSize: 12, fontFamily: fontMono, border: "1px solid #44566a", borderRadius: 3, padding: "0 5px" }}>OUT</span> : null}
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ background: "rgba(0,0,0,.2)", padding: "8px 16px 8px 60px", display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 12, color: arrowColor, minWidth: 28 }}>{arrow}</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 12, color: "#9fb2c2" }}>
+                              Proj #{projRank + 1} · <span style={{ fontWeight: 700, color: row.projected > row.total ? "#22c55e" : "#9fb2c2" }}>{row.projected} pts</span>
+                            </span>
+                          </div>
+                          {(row.projDetail || []).length > 0 && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              {row.projDetail.map((d, k) => (
+                                <span key={k} style={{ fontFamily: fontMono, fontSize: 11, background: "rgba(255,255,255,.07)", color: "#b0c4d4", borderRadius: 3, padding: "2px 6px", border: "1px solid rgba(255,255,255,.12)" }}>{d}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+                <div style={{ color: "#7f93a5", fontFamily: fontMono, fontSize: 11.5, paddingTop: 6 }}>
+                  Total = banked points. Proj adds season awards and multipliers as if they locked today{tournamentOver ? " — tournament complete." : "."}{anyPending ? " ▲▼ = projected rank movement." : ""}
+                </div>
+              </>
             );
           })()}
         </section>
 
         {/* ---------- PLAYER SCHEDULES ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="teams" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Your teams this week</SectionTitle>
           {standings.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "16px 20px", borderRadius: 8, fontSize: 17 }}>
               Once the draft is in, each player gets their teams' upcoming match schedule here.
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
-              {standings.map(row => (
-                <div key={row.player} style={{ background: C.chalk, borderRadius: 8, padding: "16px 18px", boxShadow: "0 5px 0 rgba(0,0,0,.22)", borderTop: `4px solid ${C.pitchDark}` }}>
-                  <h3 style={{ fontFamily: fontDisplay, fontSize: 16, textTransform: "uppercase", margin: "0 0 10px", color: C.ink, letterSpacing: .5 }}>{row.player}</h3>
-                  {row.teams.map((t, j) => {
-                    const matches = fxFor(t);
-                    const out = row.stats[j].elim;
-                    return (
-                      <div key={t} style={{ padding: "8px 0", borderTop: "1px solid #e3e0d4" }}>
-                        <div style={{ fontFamily: fontCond, fontWeight: 700, fontSize: 17, color: out ? "#9a9a90" : C.ink }}>
-                          {flag(t)} {t} {out ? <span style={{ fontFamily: fontMono, fontSize: 11, color: C.red, border: `1px solid ${C.red}`, borderRadius: 3, padding: "0 5px", marginLeft: 4 }}>OUT</span> : null}
-                        </div>
-                        {out ? (
-                          <div style={{ fontSize: 14.5, color: "#9a9a90", marginTop: 2 }}>Tournament over — points are banked.</div>
-                        ) : matches.length === 0 ? (
-                          <div style={{ fontSize: 14.5, color: C.inkSoft, marginTop: 2 }}>No schedule loaded yet — tap Update now to fetch it.</div>
-                        ) : matches.map((m, k) => (
-                          <div key={k} style={{ display: "flex", gap: 8, fontSize: 15.5, color: C.inkSoft, marginTop: 3, alignItems: "baseline", flexWrap: "wrap" }}>
-                            <span style={{ fontFamily: fontMono, fontSize: 12.5, fontWeight: 700, color: m.live ? C.red : C.pitchDark, minWidth: 52 }}>{m.live ? "● LIVE" : localKickDate(m)}</span>
-                            <span style={{ fontWeight: 600 }}>vs {flag(m.o)} {m.o}</span>
-                            {m.live
-                              ? <span style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, color: C.ink }}>{m.su}–{m.so} <span style={{ color: C.red, fontWeight: 700 }}>{m.min}</span></span>
-                              : <span style={{ fontFamily: fontMono, fontSize: 12.5 }}>{localKickTime(m)}{m.v ? ` · ${m.v}` : ""}</span>}
-                          </div>
-                        ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {standings.map(row => {
+                const isExpanded = expandedSchedules.has(row.player);
+                const allFx = row.teams.flatMap(t => fxFor(t));
+                const sortedFx = [...allFx].sort((a, b) => (a.iso || '').localeCompare(b.iso || ''));
+                const nextFx = sortedFx.find(m => m.live) || sortedFx[0];
+                return (
+                  <div key={row.player} style={{ background: C.chalk, borderRadius: 8, boxShadow: "0 5px 0 rgba(0,0,0,.22)", overflow: "hidden" }}>
+                    <div
+                      onClick={() => setExpandedSchedules(prev => {
+                        const next = new Set(prev);
+                        if (next.has(row.player)) next.delete(row.player); else next.add(row.player);
+                        return next;
+                      })}
+                      style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none", borderTop: `4px solid ${C.pitchDark}` }}
+                    >
+                      <h3 style={{ fontFamily: fontDisplay, fontSize: 16, textTransform: "uppercase", margin: 0, color: C.ink, letterSpacing: .5, flex: 1 }}>
+                        {row.player}
+                      </h3>
+                      <span style={{ fontSize: 17, letterSpacing: 2 }}>{row.teams.map(t => flag(t)).join(" ")}</span>
+                      {nextFx && !isExpanded && (
+                        <span style={{ fontFamily: fontMono, fontSize: 11.5, color: C.pitchDark, fontWeight: 700 }}>
+                          {nextFx.live ? "● LIVE" : localKickDate(nextFx)}
+                        </span>
+                      )}
+                      <span style={{ fontFamily: fontMono, fontSize: 12, color: C.inkSoft }}>{isExpanded ? "▲" : "▼"}</span>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: "0 18px 14px" }}>
+                        {row.teams.map((t, j) => {
+                          const matches = fxFor(t);
+                          const out = row.stats[j].elim;
+                          return (
+                            <div key={t} style={{ padding: "8px 0", borderTop: "1px solid #e3e0d4" }}>
+                              <div style={{ fontFamily: fontCond, fontWeight: 700, fontSize: 17, color: out ? "#9a9a90" : C.ink }}>
+                                {flag(t)} {t} {out ? <span style={{ fontFamily: fontMono, fontSize: 11, color: C.red, border: `1px solid ${C.red}`, borderRadius: 3, padding: "0 5px", marginLeft: 4 }}>OUT</span> : null}
+                              </div>
+                              {out ? (
+                                <div style={{ fontSize: 14.5, color: "#9a9a90", marginTop: 2 }}>Tournament over — points are banked.</div>
+                              ) : matches.length === 0 ? (
+                                <div style={{ fontSize: 14.5, color: C.inkSoft, marginTop: 2 }}>No schedule loaded yet — tap Update now to fetch it.</div>
+                              ) : matches.map((m, k) => (
+                                <div key={k} style={{ display: "flex", gap: 8, fontSize: 15.5, color: C.inkSoft, marginTop: 3, alignItems: "baseline", flexWrap: "wrap" }}>
+                                  <span style={{ fontFamily: fontMono, fontSize: 12.5, fontWeight: 700, color: m.live ? C.red : C.pitchDark, minWidth: 52 }}>{m.live ? "● LIVE" : localKickDate(m)}</span>
+                                  <span style={{ fontWeight: 600 }}>vs {flag(m.o)} {m.o}</span>
+                                  {m.live
+                                    ? <span style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, color: C.ink }}>{m.su}–{m.so} <span style={{ color: C.red, fontWeight: 700 }}>{m.min}</span></span>
+                                    : <span style={{ fontFamily: fontMono, fontSize: 12.5 }}>{localKickTime(m)}{m.v ? ` · ${m.v}` : ""}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
 
         {/* ---------- CATEGORY PANELS ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="categories" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Point categories</SectionTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
 
@@ -752,8 +688,8 @@ export default function WorldCupPool() {
                   </div>
                   {standings.map(r => r.stats.map((s, j) => (
                     <div key={`${r.player}-${s.t}`} style={{ display: "grid", gridTemplateColumns: "92px 1fr 30px 30px 54px", alignItems: "baseline", padding: "8px 0", borderTop: `1px solid ${j === 0 ? "#e3e0d4" : "#f0ede2"}`, fontSize: 16.5 }}>
-                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink, fontSize: 14.5, lineHeight: 1.15, paddingRight: 8 }}>{j === 0 ? r.player : ""}</b>
-                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink }}>{flag(s.t)} {s.t}</b>
+                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink, fontSize: 14.5, lineHeight: 1.15, paddingRight: 8, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j === 0 ? r.player : ""}</b>
+                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{flag(s.t)} {s.t}</b>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.gw ? C.ink : C.inkSoft }}>{s.gw}</span>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.gd ? C.ink : C.inkSoft }}>{s.gd}</span>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.uw ? C.ink : C.inkSoft }}>{s.uw}</span>
@@ -773,7 +709,7 @@ export default function WorldCupPool() {
             </Panel>
 
             {/* Chaos bonuses */}
-            <Panel title="Chaos bonuses" sub="Own goal +5 each · Blowout loss (4+) +5 each · First out +10">
+            <Panel title="Chaos bonuses" sub="Own goal +5 each · Blowout loss (lose by 4+ goals) +5 each · First out +10">
               {standings.length === 0 ? <Empty /> : (() => {
                 const lines = uniqueTeamStats.filter(s => s.og || s.bl || s.fo);
                 return lines.length === 0 ? <Empty text="Nothing chaotic yet. Give it time." /> :
@@ -796,12 +732,13 @@ export default function WorldCupPool() {
             <Panel title="Multiplier watch" sub="Zero goals 1.5x · Most allowed 1.5x · Last place ½ × worst GD — boosts your OTHER team">
               {standings.length === 0 ? <Empty /> : (() => {
                 const flagged = uniqueTeamStats.filter(s => (provMult[s.t] || []).length);
-                const lp = awards.lastPlace;
+                const lp = awards.lastPlaceProv;
+                const lpLocked = !!awards.lastPlace;
                 return (
                   <>
                     {flagged.length === 0 && !lp && <Empty text="No multipliers brewing yet." />}
                     {flagged.map(s => <Row key={s.t} label={`${flag(s.t)} ${s.t}`}>{provMult[s.t].join(" · ")}</Row>)}
-                    {lp && <Row label={`${flag(lp.team)} ${lp.team}`}>Last place locked — partner team x{lp.mult}</Row>}
+                    {lp && <Row label={`${flag(lp.team)} ${lp.team}`}>{lpLocked ? `Last place locked — partner team x${lp.mult}` : `Last place brewing x${lp.mult} — final group game still to play`}</Row>}
                   </>
                 );
               })()}
@@ -839,7 +776,7 @@ function Row({ label, children }) {
   return (
     <div style={{ display: "flex", gap: 12, padding: "8px 0", borderTop: "1px solid #e3e0d4", fontSize: 16.5, fontWeight: 500, alignItems: "baseline", flexWrap: "wrap" }}>
       <b style={{ minWidth: 110, fontFamily: fontCond, fontWeight: 700, color: C.ink }}>{label}</b>
-      <span style={{ color: C.inkSoft, flex: 1 }}>{children}</span>
+      <span style={{ color: C.inkSoft, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{children}</span>
     </div>
   );
 }

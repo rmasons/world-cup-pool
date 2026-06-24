@@ -62,9 +62,9 @@ fresh every request.
 - **Event detail shape** (cards / own goals in `details[]`) is parsed from ESPN's match
   detail feed, with own-goal raw details logged to Vercel function logs (`[audit]`). The
   group stage is now underway, so this runs against live 2026 data rather than community docs.
-- **Own-goal attribution** (which team `details[].team` points at) has been corrected in the
-  ESPN detail parsing — it's worth 5 pts, so still worth a spot-check against any contested
-  own goal.
+- **Own-goal attribution** is resolved: ESPN's `details[].team` is the *benefiting* team, but
+  the pool credits the +5 to the *conceding* team (read from `athletesInvolved`). Verified
+  against live matches and locked in by a regression test (`lib/espn.test.js`).
 - **Elimination logic** is pragmatic, not a full mathematical-elimination solver:
   knockout loss = out; a team is out as soon as it's mathematically locked into 4th
   (3 group rivals guaranteed above it on points or head-to-head — which can happen

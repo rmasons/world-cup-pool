@@ -462,6 +462,12 @@ export default function WorldCupPool() {
                   <div style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 12, color: STORY_COLORS[i % 3], marginBottom: 8, letterSpacing: 1 }}>● STORY {i + 1}</div>
                   <h3 style={{ fontFamily: fontDisplay, fontSize: 18, lineHeight: 1.3, margin: "0 0 10px", color: C.ink }}>{st.h}</h3>
                   <p style={{ margin: 0, fontSize: 17, lineHeight: 1.5, color: C.inkSoft, fontWeight: 500 }}>{st.s}</p>
+                  {st.url && (
+                    <a href={st.url} target="_blank" rel="noopener noreferrer"
+                      style={{ display: "inline-block", marginTop: 10, fontFamily: fontMono, fontSize: 12, fontWeight: 700, letterSpacing: .5, color: STORY_COLORS[i % 3], textDecoration: "none" }}>
+                      via ESPN ↗
+                    </a>
+                  )}
                 </article>
               ))}
             </div>

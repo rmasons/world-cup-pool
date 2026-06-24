@@ -170,6 +170,16 @@ function computeAll(rosters, statsMap, tournamentOver) {
     provMult[s.t] = flags;
   });
 
+  // Short, human reason a team is generating a multiplier (locked label, else brewing flag)
+  const multReason = (team) => {
+    const locked = teamMult[team];
+    if (locked && locked.m > 1 && locked.label) return locked.label.replace(/\s*[\d.]+x$/i, "").toLowerCase();
+    const prov = provMult[team] || [];
+    if (prov.some(f => /zero goals/i.test(f))) return "zero goals";
+    if (prov.some(f => /most goals allowed/i.test(f))) return "most allowed";
+    return "multiplier";
+  };
+
   const standings = rosters.map(p => {
     const provMultOf = (s, mostAllowedList) => (s.gf === 0 && s.gp > 0) || mostAllowedList.includes(s.t);
     const [a, b] = p.teams;
@@ -196,12 +206,12 @@ function computeAll(rosters, statsMap, tournamentOver) {
       let provA = multA, provB = multB;
       if (provA === 1 && (provMultOf(statsMap[b] || emptyStats(b), mostAllowed))) provA = 1.5;
       if (provB === 1 && (provMultOf(statsMap[a] || emptyStats(a), mostAllowed))) provB = 1.5;
-      if (provA > 1) projDetail.push(`${flag(b)} multiplier x${provA} boosts ${flag(a)} +${Math.round(pa * provA - pa)}`);
-      if (provB > 1) projDetail.push(`${flag(a)} multiplier x${provB} boosts ${flag(b)} +${Math.round(pb * provB - pb)}`);
+      if (provA > 1) projDetail.push(`${flag(b)} ${multReason(b)} x${provA} boosts ${flag(a)} +${Math.round(pa * provA - pa)}`);
+      if (provB > 1) projDetail.push(`${flag(a)} ${multReason(a)} x${provB} boosts ${flag(b)} +${Math.round(pb * provB - pb)}`);
       projected = Math.round(pa * provA + pb * provB);
     } else {
-      if (multA > 1) projDetail.push(`${flag(b)} multiplier x${multA} on ${flag(a)}`);
-      if (multB > 1) projDetail.push(`${flag(a)} multiplier x${multB} on ${flag(b)}`);
+      if (multA > 1) projDetail.push(`${flag(b)} ${multReason(b)} x${multA} boosts ${flag(a)}`);
+      if (multB > 1) projDetail.push(`${flag(a)} ${multReason(a)} x${multB} boosts ${flag(b)}`);
     }
     return { player: p.name, teams: [a, b], teamPts: [teamScore[a], teamScore[b]], mults: [teamMult[b], teamMult[a]], current, total, projected, projDetail, stats: [sa, sb] };
   }).sort((x, y) => y.total - x.total || y.projected - x.projected);
@@ -655,14 +665,20 @@ export default function WorldCupPool() {
                             </div>
                           ))}
                         </div>
-                        <div style={{ background: "rgba(0,0,0,.2)", padding: "8px 16px 8px 60px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 12, color: arrowColor, minWidth: 28 }}>{arrow}</span>
-                          <span style={{ fontFamily: fontMono, fontSize: 12, color: "#9fb2c2" }}>
-                            Proj #{projRank + 1} · <span style={{ fontWeight: 700, color: row.projected > row.total ? "#22c55e" : "#9fb2c2" }}>{row.projected} pts</span>
-                          </span>
-                          {(row.projDetail || []).map((d, k) => (
-                            <span key={k} style={{ fontFamily: fontMono, fontSize: 11, background: "rgba(255,255,255,.07)", color: "#b0c4d4", borderRadius: 3, padding: "2px 6px", border: "1px solid rgba(255,255,255,.12)" }}>{d}</span>
-                          ))}
+                        <div style={{ background: "rgba(0,0,0,.2)", padding: "8px 16px 8px 60px", display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontFamily: fontMono, fontWeight: 700, fontSize: 12, color: arrowColor, minWidth: 28 }}>{arrow}</span>
+                            <span style={{ fontFamily: fontMono, fontSize: 12, color: "#9fb2c2" }}>
+                              Proj #{projRank + 1} · <span style={{ fontWeight: 700, color: row.projected > row.total ? "#22c55e" : "#9fb2c2" }}>{row.projected} pts</span>
+                            </span>
+                          </div>
+                          {(row.projDetail || []).length > 0 && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              {row.projDetail.map((d, k) => (
+                                <span key={k} style={{ fontFamily: fontMono, fontSize: 11, background: "rgba(255,255,255,.07)", color: "#b0c4d4", borderRadius: 3, padding: "2px 6px", border: "1px solid rgba(255,255,255,.12)" }}>{d}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

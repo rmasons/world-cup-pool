@@ -63,9 +63,12 @@ fresh every request.
 - **Own-goal attribution** (which team `details[].team` points at) must be confirmed
   against the tournament's first own goal — it's worth 5 pts, so it will be litigated.
 - **Elimination logic** is pragmatic, not a full mathematical-elimination solver:
-  knockout loss = out; 4th after group completion = out; 3rd-placers stay alive until
-  the named R32 bracket excludes them. "First out" (+10) = earliest sealed fate under
-  these rules; an exact tie awards nothing until the group rules on it.
+  knockout loss = out; a team is out as soon as it's mathematically locked into 4th
+  (3 group rivals guaranteed above it on points or head-to-head — which can happen
+  before the final matchday); 3rd-placers stay alive until the named R32 bracket
+  excludes them. "First out" (+10) = the earliest-sealed **pool** team (non-pool teams
+  can go out first, but the award is the first of a player's own teams to fall); an
+  exact tie between two pool teams awards nothing until the group rules on it.
 - **Forecast** is a one-time, hand-written bookmaker-consensus snapshot in
   `lib/config.js` (no runtime AI). Live projections take over after the first matches.
 

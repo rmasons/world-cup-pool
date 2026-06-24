@@ -4,10 +4,6 @@ Self-updating scoreboard for a 13-player World Cup pool. Originally built as a C
 artifact (see `docs/WORLD-CUP-POOL-DOCS.md` for the full build history); now hosted on
 Vercel with the AI data pipeline replaced by real sports data.
 
-**Ownership note:** the frontend (`src/WorldCupPool.jsx`) is the original author's design
-and scoring engine — visual changes are off-limits. The backend (`api/`, `lib/`) is the
-hosting layer and is fair game.
-
 ## Architecture — stateless on purpose
 
 There is no database. ESPN's season query returns the complete tournament every time,

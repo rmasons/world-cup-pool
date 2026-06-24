@@ -349,7 +349,7 @@ export default function WorldCupPool() {
         {/* chalk center-circle motif */}
         <div style={{ position: "absolute", right: "-90px", top: "-110px", width: 320, height: 320, borderRadius: "50%", border: "3px solid rgba(250,250,247,.25)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", right: "10px", top: "-10px", width: 120, height: 120, borderRadius: "50%", border: "3px solid rgba(250,250,247,.18)", pointerEvents: "none" }} />
-        <div style={{ fontFamily: fontCond, fontWeight: 700, letterSpacing: 4, textTransform: "uppercase", fontSize: 14, opacity: .95 }}>
+        <div style={{ fontFamily: fontCond, fontWeight: 700, letterSpacing: "clamp(1px, 1.2vw, 4px)", textTransform: "uppercase", fontSize: 14, opacity: .95, overflowWrap: "break-word" }}>
           🇺🇸 United States · 🇨🇦 Canada · 🇲🇽 Mexico — June 11 to July 19, 2026
         </div>
         <h1 style={{ fontFamily: fontDisplay, fontSize: "clamp(36px, 7vw, 68px)", lineHeight: 1.02, margin: "8px 0 4px", textTransform: "uppercase", textShadow: "3px 3px 0 rgba(0,0,0,.3)" }}>
@@ -688,8 +688,8 @@ export default function WorldCupPool() {
                   </div>
                   {standings.map(r => r.stats.map((s, j) => (
                     <div key={`${r.player}-${s.t}`} style={{ display: "grid", gridTemplateColumns: "92px 1fr 30px 30px 54px", alignItems: "baseline", padding: "8px 0", borderTop: `1px solid ${j === 0 ? "#e3e0d4" : "#f0ede2"}`, fontSize: 16.5 }}>
-                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink, fontSize: 14.5, lineHeight: 1.15, paddingRight: 8 }}>{j === 0 ? r.player : ""}</b>
-                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink }}>{flag(s.t)} {s.t}</b>
+                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink, fontSize: 14.5, lineHeight: 1.15, paddingRight: 8, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{j === 0 ? r.player : ""}</b>
+                      <b style={{ fontFamily: fontCond, fontWeight: 700, color: C.ink, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{flag(s.t)} {s.t}</b>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.gw ? C.ink : C.inkSoft }}>{s.gw}</span>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.gd ? C.ink : C.inkSoft }}>{s.gd}</span>
                       <span style={{ textAlign: "center", fontFamily: fontMono, fontWeight: 700, color: s.uw ? C.ink : C.inkSoft }}>{s.uw}</span>
@@ -776,7 +776,7 @@ function Row({ label, children }) {
   return (
     <div style={{ display: "flex", gap: 12, padding: "8px 0", borderTop: "1px solid #e3e0d4", fontSize: 16.5, fontWeight: 500, alignItems: "baseline", flexWrap: "wrap" }}>
       <b style={{ minWidth: 110, fontFamily: fontCond, fontWeight: 700, color: C.ink }}>{label}</b>
-      <span style={{ color: C.inkSoft, flex: 1 }}>{children}</span>
+      <span style={{ color: C.inkSoft, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{children}</span>
     </div>
   );
 }

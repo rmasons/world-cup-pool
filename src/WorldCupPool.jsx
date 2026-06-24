@@ -127,16 +127,21 @@ function computeAll(rosters, statsMap, tournamentOver) {
   const cardLeaders = maxCards !== null && maxCards > 0 ? played.filter(s => cardPts(s) === maxCards).map(s => s.t) : [];
   const mostAllowed = maxGA !== null && maxGA > 0 ? played.filter(s => s.ga === maxGA).map(s => s.t) : [];
 
-  // Last place: 0 match points (gw=gd=0) and worst goal differential
-  let lastPlace = null;
+  // Last place: 0 match points (gw=gd=0), eliminated, worst goal differential — boosts the
+  // partner. The multiplier only LOCKS once that team's group games are done (gp>=3 or
+  // tournamentOver). A team sealed into 4th but still with a game to play shows it as brewing,
+  // not locked, since its goal difference (and so the multiplier size) can still move.
+  const settled = (t) => { const s = statsMap[t]; return tournamentOver || (s && s.gp >= 3); };
+  let lastPlaceProv = null; // current worst among sealed, pointless teams (may still be brewing)
   const pointless = played.filter(s => s.gw === 0 && s.gd === 0 && s.elim);
   if (pointless.length) {
     const worstGD = Math.min(...pointless.map(s => s.gf - s.ga));
     if (worstGD < 0) {
       const worst = pointless.filter(s => s.gf - s.ga === worstGD);
-      if (worst.length === 1) lastPlace = { team: worst[0].t, gd: worstGD, mult: Math.max(1, Math.abs(worstGD)/2) };
+      if (worst.length === 1) lastPlaceProv = { team: worst[0].t, gd: worstGD, mult: Math.max(1, Math.abs(worstGD)/2) };
     }
   }
+  const lastPlace = lastPlaceProv && settled(lastPlaceProv.team) ? lastPlaceProv : null; // locked only when group is done
 
   const teamScore = {};
   stats.forEach(s => {
@@ -153,7 +158,7 @@ function computeAll(rosters, statsMap, tournamentOver) {
   const teamMult = {};
   stats.forEach(s => {
     let m = 1, label = null;
-    const zeroGoals = s.gf === 0 && s.gp > 0 && (tournamentOver || s.elim);
+    const zeroGoals = s.gf === 0 && s.gp > 0 && (tournamentOver || (s.elim && s.gp >= 3));
     const mostAllow = mostAllowed.includes(s.t) && tournamentOver;
     if (zeroGoals && 1.5 > m) { m = 1.5; label = "Zero goals 1.5x"; }
     if (mostAllow && 1.5 > m) { m = 1.5; label = "Most allowed 1.5x"; }
@@ -174,14 +179,29 @@ function computeAll(rosters, statsMap, tournamentOver) {
   const multReason = (team) => {
     const locked = teamMult[team];
     if (locked && locked.m > 1 && locked.label) return locked.label.replace(/\s*[\d.]+x$/i, "").toLowerCase();
+    // brewing: report whichever multiplier is largest, matching provGen's choice
+    if (lastPlaceProv && lastPlaceProv.team === team && lastPlaceProv.mult >= 1.5) return "last place";
     const prov = provMult[team] || [];
     if (prov.some(f => /zero goals/i.test(f))) return "zero goals";
     if (prov.some(f => /most goals allowed/i.test(f))) return "most allowed";
     return "multiplier";
   };
 
+  // Provisional multiplier a team generates for its partner at today's numbers: the locked
+  // value if it has locked, otherwise the largest multiplier currently brewing. Drives the
+  // projected-points breakdown, so a sealed-but-still-playing team's boost shows as brewing.
+  const provGen = (team) => {
+    const locked = teamMult[team]?.m || 1;
+    if (locked > 1) return locked;
+    const s = statsMap[team] || emptyStats(team);
+    let m = 1;
+    if (s.gf === 0 && s.gp > 0) m = Math.max(m, 1.5);
+    if (mostAllowed.includes(team)) m = Math.max(m, 1.5);
+    if (lastPlaceProv && lastPlaceProv.team === team) m = Math.max(m, lastPlaceProv.mult);
+    return m;
+  };
+
   const standings = rosters.map(p => {
-    const provMultOf = (s, mostAllowedList) => (s.gf === 0 && s.gp > 0) || mostAllowedList.includes(s.t);
     const [a, b] = p.teams;
     const sa = statsMap[a] || emptyStats(a);
     const sb = statsMap[b] || emptyStats(b);
@@ -202,10 +222,9 @@ function computeAll(rosters, statsMap, tournamentOver) {
       if (offenseLeaders.includes(b)) { pb += 10; award(b, "Best Offense"); }
       if (defenseLeaders.includes(b)) { pb += 10; award(b, "Best Defense"); }
       if (cardLeaders.includes(b)) { pb += 10; award(b, "Most Cards"); }
-      // Provisional multipliers brewing (zero goals / most allowed), shown as if they locked today
-      let provA = multA, provB = multB;
-      if (provA === 1 && (provMultOf(statsMap[b] || emptyStats(b), mostAllowed))) provA = 1.5;
-      if (provB === 1 && (provMultOf(statsMap[a] || emptyStats(a), mostAllowed))) provB = 1.5;
+      // Provisional multipliers brewing (zero goals / most allowed / last place), shown as if
+      // they locked today — the partner generates the boost applied to this team.
+      const provA = provGen(b), provB = provGen(a);
       if (provA > 1) projDetail.push(`${flag(b)} ${multReason(b)} x${provA} boosts ${flag(a)} +${Math.round(pa * provA - pa)}`);
       if (provB > 1) projDetail.push(`${flag(a)} ${multReason(a)} x${provB} boosts ${flag(b)} +${Math.round(pb * provB - pb)}`);
       projected = Math.round(pa * provA + pb * provB);
@@ -216,7 +235,7 @@ function computeAll(rosters, statsMap, tournamentOver) {
     return { player: p.name, teams: [a, b], teamPts: [teamScore[a], teamScore[b]], mults: [teamMult[b], teamMult[a]], current, total, projected, projDetail, stats: [sa, sb] };
   }).sort((x, y) => y.total - x.total || y.projected - x.projected);
 
-  return { standings, stats, awards: { offenseLeaders, maxGF, defenseLeaders, minGA, cardLeaders, maxCards, mostAllowed, maxGA, lastPlace }, provMult, teamMult };
+  return { standings, stats, awards: { offenseLeaders, maxGF, defenseLeaders, minGA, cardLeaders, maxCards, mostAllowed, maxGA, lastPlace, lastPlaceProv }, provMult, teamMult };
 }
 
 // ---------------- API HELPERS ----------------
@@ -819,7 +838,7 @@ export default function WorldCupPool() {
             </Panel>
 
             {/* Chaos bonuses */}
-            <Panel title="Chaos bonuses" sub="Own goal +5 each · Blowout loss (4+) +5 each · First out +10">
+            <Panel title="Chaos bonuses" sub="Own goal +5 each · Blowout loss (lose by 4+ goals) +5 each · First out +10">
               {standings.length === 0 ? <Empty /> : (() => {
                 const lines = uniqueTeamStats.filter(s => s.og || s.bl || s.fo);
                 return lines.length === 0 ? <Empty text="Nothing chaotic yet. Give it time." /> :
@@ -842,12 +861,13 @@ export default function WorldCupPool() {
             <Panel title="Multiplier watch" sub="Zero goals 1.5x · Most allowed 1.5x · Last place ½ × worst GD — boosts your OTHER team">
               {standings.length === 0 ? <Empty /> : (() => {
                 const flagged = uniqueTeamStats.filter(s => (provMult[s.t] || []).length);
-                const lp = awards.lastPlace;
+                const lp = awards.lastPlaceProv;
+                const lpLocked = !!awards.lastPlace;
                 return (
                   <>
                     {flagged.length === 0 && !lp && <Empty text="No multipliers brewing yet." />}
                     {flagged.map(s => <Row key={s.t} label={`${flag(s.t)} ${s.t}`}>{provMult[s.t].join(" · ")}</Row>)}
-                    {lp && <Row label={`${flag(lp.team)} ${lp.team}`}>Last place locked — partner team x{lp.mult}</Row>}
+                    {lp && <Row label={`${flag(lp.team)} ${lp.team}`}>{lpLocked ? `Last place locked — partner team x${lp.mult}` : `Last place brewing x${lp.mult} — final group game still to play`}</Row>}
                   </>
                 );
               })()}

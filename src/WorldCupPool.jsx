@@ -483,13 +483,35 @@ export default function WorldCupPool() {
         )}
       </header>
 
+      {!loading && (
+        <nav style={{ position: "sticky", top: 0, zIndex: 50, background: C.pitchDark,
+          borderBottom: "1px solid rgba(250,250,247,.15)", boxShadow: "0 2px 10px rgba(0,0,0,.4)",
+          display: "flex", gap: 6, overflowX: "auto", padding: "8px 5vw", WebkitOverflowScrolling: "touch" }}>
+          {[
+            { id: "schedule", label: "Schedule" },
+            { id: "stories", label: "Stories" },
+            { id: "scoreboard", label: "Scoreboard" },
+            { id: "teams", label: "My teams" },
+            { id: "categories", label: "Points" },
+          ].map(s => (
+            <button key={s.id} onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              style={{ flex: "0 0 auto", fontFamily: fontMono, fontSize: 12, fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: 1, color: C.chalk, background: "rgba(250,250,247,.08)",
+                border: "1px solid rgba(250,250,247,.18)", borderRadius: 999, padding: "7px 14px",
+                cursor: "pointer", whiteSpace: "nowrap" }}>
+              {s.label}
+            </button>
+          ))}
+        </nav>
+      )}
+
       {loading ? (
         <div style={{ padding: "60px 5vw", color: C.chalk, fontFamily: fontMono }}>Loading the pool…</div>
       ) : (
       <main style={{ padding: "34px 5vw 60px", maxWidth: 1100, margin: "0 auto" }}>
 
         {/* ---------- UPCOMING GAMES ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="schedule" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>On the schedule</SectionTitle>
           {upGames.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "16px 20px", borderRadius: 8, fontSize: 17 }}>
@@ -537,7 +559,7 @@ export default function WorldCupPool() {
         </section>
 
         {/* ---------- TOP STORIES ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="stories" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Today's top stories</SectionTitle>
           {stories.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "18px 20px", borderRadius: 6, fontSize: 17 }}>
@@ -563,7 +585,7 @@ export default function WorldCupPool() {
         </section>
 
         {/* ---------- SCOREBOARD ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="scoreboard" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Scoreboard</SectionTitle>
           {standings.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "16px 20px", borderRadius: 8, fontSize: 17 }}>
@@ -693,7 +715,7 @@ export default function WorldCupPool() {
         </section>
 
         {/* ---------- PLAYER SCHEDULES ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="teams" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Your teams this week</SectionTitle>
           {standings.length === 0 ? (
             <div style={{ background: "rgba(0,0,0,.25)", color: C.chalk, padding: "16px 20px", borderRadius: 8, fontSize: 17 }}>
@@ -763,7 +785,7 @@ export default function WorldCupPool() {
         </section>
 
         {/* ---------- CATEGORY PANELS ---------- */}
-        <section style={{ marginBottom: 44 }}>
+        <section id="categories" style={{ marginBottom: 44, scrollMarginTop: 56 }}>
           <SectionTitle light>Point categories</SectionTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
 
